@@ -1,0 +1,87 @@
+_format_version: "3.0"
+_transform: true
+
+# Kong corre en modo DB-less. Este archivo define el gateway sin base de datos.
+# Responsabilidad actual:
+#   1. validar el JWT emitido por el microservicio externo de autenticacion
+#   2. limpiar / propagar headers confiables
+#   3. enrutar al Bridge
+#   4. aplicar controles de trafico
+
+consumers:
+  - username: asp-pagos-auth-service
+    custom_id: asp-pagos-auth-service
+    jwt_secrets:
+      - key: asp-pagos-auth-service
+        algorithm: HS256
+        secret: local-dev-kong-jwt-secret-change-me
+
+services:
+  - name: asp-pago-integration
+    url: http://host.docker.internal:8080
+    connect_timeout: 5000
+    read_timeout: 15000
+    write_timeout: 5000
+    retries: 3
+
+    routes:
+      - name: bridge-jwt-route
+        paths:
+          - /gateway
+          - /bff
+        methods:
+          - GET
+          - POST
+        strip_path: true
+        preserve_host: false
+
+    plugins:
+      - name: jwt
+        config:
+          claims_to_verify:
+            - exp
+            - nbf
+          key_claim_name: iss
+          secret_is_base64: false
+          cookie_names: []
+          run_on_preflight: false
+          uri_param_names: []
+          header_names:
+            - Authorization
+          hide_credentials: false
+
+      - name: request-transformer
+        config:
+          remove:
+            headers:
+              - X-Gateway-Secret
+              - X-Authenticated-Client
+              - X-Authenticated-User
+              - X-Authenticated-Scopes
+              - X-Sistema-Origen
+          add:
+            headers:
+              - "X-Gateway-Secret:local-dev-kong-jwt-bridge-secret"
+              - "X-Authenticated-Client:$(headers[\"X-Consumer-Custom-ID\"] or headers[\"X-Consumer-Username\"] or \"asp-pagos-auth-service\")"
+              - "X-Sistema-Origen:kong-jwt-gateway"
+
+      - name: rate-limiting
+        config:
+          minute: 300
+          hour: 5000
+          day: 30000
+          limit_by: consumer
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 2
+          require_content_length: false
+
+      - name: correlation-id
+        config:
+          header_name: X-Correlation-Id
+          generator: uuid
+          echo_downstream: true

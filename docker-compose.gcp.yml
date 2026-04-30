@@ -1,0 +1,32 @@
+services:
+  kong:
+    image: kong:3.7
+    container_name: kong
+    restart: unless-stopped
+    env_file:
+      - .env.gcp
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_STATUS_LISTEN: "0.0.0.0:8100"
+      KONG_ADMIN_LISTEN: "127.0.0.1:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000 reuseport backlog=16384"
+      KONG_LOG_LEVEL: ${KONG_LOG_LEVEL:-notice}
+      KONG_LMDB_MAP_SIZE: "2048m"
+    ports:
+      - "8000:8000"
+      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8100:8100"
+    volumes:
+      - ./kong.gcp.yml:/etc/kong/kong.yml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8100/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
