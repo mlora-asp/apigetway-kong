@@ -18,7 +18,7 @@ consumers:
 
 services:
   - name: asp-pago-integration
-    url: http://host.docker.internal:8080
+    url: http://host.docker.internal:8095
     connect_timeout: 5000
     read_timeout: 15000
     write_timeout: 5000
@@ -48,7 +48,6 @@ services:
           uri_param_names: []
           header_names:
             - Authorization
-          hide_credentials: false
 
       - name: request-transformer
         config:
